@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+.streamlit/secrets.toml
+*.xlsx
+*.zip
+Geometrias_Baixadas/
+.DS_Store
+.venv/
+venv/
