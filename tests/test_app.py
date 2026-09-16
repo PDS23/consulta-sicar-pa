@@ -13,6 +13,9 @@ REG_FAKE = {
     "condicao": "Ativo",
     "area": 42.0,
     "carId": "car-123",
+    "idDemonstrativo": "pdf-1",
+    "idObjetoFormulario": "form-1",
+    "nomeDemonstrativo": "Demonstrativo.pdf",
 }
 
 SHAPE_FAKE = {"nomeArquivo": "area_imovel.zip", "url": "https://example.org/shape.zip"}
@@ -22,6 +25,7 @@ def _app_com_busca_mockada(monkeypatch):
     monkeypatch.setattr("sicar_pa.client.buscar_sicar_completo", lambda *a, **k: [REG_FAKE])
     monkeypatch.setattr("sicar_pa.downloads.obter_urls_shapefile", lambda *a, **k: [SHAPE_FAKE])
     monkeypatch.setattr("sicar_pa.downloads.baixar_camada_shapefile", lambda *a, **k: b"fake-zip-bytes")
+    monkeypatch.setattr("sicar_pa.downloads.baixar_demonstrativo_pdf", lambda *a, **k: b"fake-pdf-bytes")
     return AppTest.from_file("../app.py", default_timeout=15)
 
 
@@ -43,6 +47,21 @@ def test_resultados_sobrevivem_ao_clique_no_botao_de_download(monkeypatch):
     assert any("Fazenda Teste" in e.label for e in at.expander)
 
     at.button[1].click().run()  # botão "📥 area_imovel.zip"
+
+    assert not at.exception
+    assert any("Fazenda Teste" in e.label for e in at.expander)
+    assert any(db.label == "Salvar" for db in at.download_button)
+
+
+def test_download_demonstrativo_pdf_na_consulta_rapida(monkeypatch):
+    at = _app_com_busca_mockada(monkeypatch)
+    at.run()
+    at.button[0].click().run()  # busca
+
+    assert any(b.label == "📄 Demonstrativo.pdf" for b in at.button)
+
+    botao_pdf = next(b for b in at.button if b.label == "📄 Demonstrativo.pdf")
+    botao_pdf.click().run()
 
     assert not at.exception
     assert any("Fazenda Teste" in e.label for e in at.expander)

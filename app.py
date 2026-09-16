@@ -6,7 +6,13 @@ import streamlit as st
 from sicar_pa.batch import processar_lote_planilha
 from sicar_pa.config import BLOCOS_CAMPOS, DEFAULT_TOKEN, DEFAULT_URL, MAPA_PAYLOAD_PARAMETROS
 from sicar_pa.client import buscar_sicar_completo
-from sicar_pa.downloads import baixar_camada_shapefile, gerar_zip_demonstrativos_lote, gerar_zip_shapefiles_lote, obter_urls_shapefile
+from sicar_pa.downloads import (
+    baixar_camada_shapefile,
+    baixar_demonstrativo_pdf,
+    gerar_zip_demonstrativos_lote,
+    gerar_zip_shapefiles_lote,
+    obter_urls_shapefile,
+)
 
 st.set_page_config(page_title="Consulta SICAR Pará", layout="wide")
 st.title("Sistema de Consulta Automática e Compliance - SICAR Pará")
@@ -111,6 +117,18 @@ with tab_rapida:
                                 st.download_button("Salvar", bin_data, shp["nomeArquivo"], key=f"save_{shp['nomeArquivo']}_{i}")
                             else:
                                 st.error("Erro WAF. Verifique seu Cookie Cloudflare.")
+
+                st.write("Baixar Demonstrativo (PDF, Requer Cookie):")
+                if reg.get("idDemonstrativo") and reg.get("idObjetoFormulario"):
+                    nome_pdf = reg.get("nomeDemonstrativo", "Demonstrativo.pdf")
+                    if st.button(f"📄 {nome_pdf}", key=f"dl_pdf_{i}"):
+                        bin_data = baixar_demonstrativo_pdf(reg, active_cookie, active_token)
+                        if bin_data:
+                            st.download_button("Salvar", bin_data, nome_pdf, key=f"save_pdf_{i}")
+                        else:
+                            st.error("Erro WAF. Verifique seu Cookie Cloudflare.")
+                else:
+                    st.caption("Demonstrativo não disponível para este imóvel.")
 
 # ==========================================
 # ABA 2: LOTE E COMPLIANCE
