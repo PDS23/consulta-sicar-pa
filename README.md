@@ -1,3 +1,5 @@
+🇧🇷 [Leia em português](README.pt-BR.md)
+
 # SICAR-PA Compliance Lookup
 
 A Streamlit app that queries the **official public API behind the SICAR-PA
