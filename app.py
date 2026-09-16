@@ -20,6 +20,14 @@ if "processed" not in st.session_state:
     st.session_state.buf_zip_shapes = None
     st.session_state.buf_zip_pdfs = None
 
+# Idem para a consulta rápida: sem isso, clicar em qualquer botão dentro dos
+# resultados (ex. baixar shapefile) dispara um rerun do Streamlit que reseta
+# o estado do botão "Consultar SICAR" para False e apaga os resultados antes
+# mesmo do clique ser processado.
+if "resultados_rapida" not in st.session_state:
+    st.session_state.resultados_rapida = None
+    st.session_state.shapes_cache = {}
+
 # Configura o estado inicial de todos os checkboxes para "False" se ainda não existirem
 for bloco, campos in BLOCOS_CAMPOS.items():
     for k in campos.keys():
@@ -59,41 +67,50 @@ with tab_rapida:
 
     if st.button("Consultar SICAR", type="primary"):
         with st.spinner("Buscando dados e compliance do imóvel..."):
-            resultados = buscar_sicar_completo(var_payload, valor_busca, active_token, active_url)
+            st.session_state.resultados_rapida = buscar_sicar_completo(var_payload, valor_busca, active_token, active_url)
+        st.session_state.shapes_cache = {}
 
-        if resultados:
-            st.success(f"✅ {len(resultados)} imóvel(is) encontrado(s).")
-            for i, reg in enumerate(resultados, 1):
-                with st.expander(f"{reg.get('nome', 'Sem Nome')} ({reg.get('codigoCAR')})", expanded=(i == 1)):
-                    ca, cb, cc = st.columns(3)
-                    ca.markdown("### Dados Gerais")
-                    ca.write(f"**CAR:** {reg.get('codigoCAR')}")
-                    ca.write(f"**Condição:** {reg.get('condicao')}")
-                    ca.write(f"**Área:** {reg.get('area')} ha")
+    # Fora do bloco do botão: assim os resultados sobrevivem ao rerun disparado
+    # pelos botões de download abaixo, em vez de sumir da tela a cada clique.
+    resultados = st.session_state.resultados_rapida
+    if resultados is None:
+        pass
+    elif not resultados:
+        st.error("Nenhum registro encontrado.")
+    else:
+        st.success(f"✅ {len(resultados)} imóvel(is) encontrado(s).")
+        for i, reg in enumerate(resultados, 1):
+            with st.expander(f"{reg.get('nome', 'Sem Nome')} ({reg.get('codigoCAR')})", expanded=(i == 1)):
+                ca, cb, cc = st.columns(3)
+                ca.markdown("### Dados Gerais")
+                ca.write(f"**CAR:** {reg.get('codigoCAR')}")
+                ca.write(f"**Condição:** {reg.get('condicao')}")
+                ca.write(f"**Área:** {reg.get('area')} ha")
 
-                    cb.markdown("### Restrições Fundiárias")
-                    cb.write(f"**Assentamentos:** {reg.get('rest_Assentamentos', 'N/A')}")
-                    cb.write(f"**Terras Indígenas:** {reg.get('rest_Terras Indígenas', 'N/A')}")
-                    cb.write(f"**Embargos:** {reg.get('rest_Áreas embargadas', 'N/A')}")
+                cb.markdown("### Restrições Fundiárias")
+                cb.write(f"**Assentamentos:** {reg.get('rest_Assentamentos', 'N/A')}")
+                cb.write(f"**Terras Indígenas:** {reg.get('rest_Terras Indígenas', 'N/A')}")
+                cb.write(f"**Embargos:** {reg.get('rest_Áreas embargadas', 'N/A')}")
 
-                    cc.markdown("### Passivo (Pós-2008)")
-                    cc.write(f"**Desmat. em Reserva:** {reg.get('desm_Reserva Legal', 0)} ha")
-                    cc.write(f"**Desmat. em APP:** {reg.get('desm_Área de Preservação Permanente', 0)} ha")
-                    cc.write(f"**Reserva a Recompor:** {reg.get('passivo_Reserva Legal a recompor', 0)} ha")
+                cc.markdown("### Passivo (Pós-2008)")
+                cc.write(f"**Desmat. em Reserva:** {reg.get('desm_Reserva Legal', 0)} ha")
+                cc.write(f"**Desmat. em APP:** {reg.get('desm_Área de Preservação Permanente', 0)} ha")
+                cc.write(f"**Reserva a Recompor:** {reg.get('passivo_Reserva Legal a recompor', 0)} ha")
 
-                    st.divider()
-                    st.write("Baixar Geometrias (Requer Cookie):")
-                    if reg.get("carId"):
-                        shapes = obter_urls_shapefile(reg.get("carId"), active_token)
-                        for shp in shapes[:5]:
-                            if st.button(f"📥 {shp['nomeArquivo']}", key=f"dl_{shp['nomeArquivo']}_{i}"):
-                                bin_data = baixar_camada_shapefile(shp["url"], active_cookie)
-                                if bin_data:
-                                    st.download_button("Salvar", bin_data, shp["nomeArquivo"])
-                                else:
-                                    st.error("Erro WAF. Verifique seu Cookie Cloudflare.")
-        else:
-            st.error("Nenhum registro encontrado.")
+                st.divider()
+                st.write("Baixar Geometrias (Requer Cookie):")
+                car_id = reg.get("carId")
+                if car_id:
+                    if car_id not in st.session_state.shapes_cache:
+                        st.session_state.shapes_cache[car_id] = obter_urls_shapefile(car_id, active_token)
+                    shapes = st.session_state.shapes_cache[car_id]
+                    for shp in shapes[:5]:
+                        if st.button(f"📥 {shp['nomeArquivo']}", key=f"dl_{shp['nomeArquivo']}_{i}"):
+                            bin_data = baixar_camada_shapefile(shp["url"], active_cookie)
+                            if bin_data:
+                                st.download_button("Salvar", bin_data, shp["nomeArquivo"], key=f"save_{shp['nomeArquivo']}_{i}")
+                            else:
+                                st.error("Erro WAF. Verifique seu Cookie Cloudflare.")
 
 # ==========================================
 # ABA 2: LOTE E COMPLIANCE
